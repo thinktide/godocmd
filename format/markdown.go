@@ -20,18 +20,17 @@ type StructFieldInfo struct {
 	DynamoType string
 }
 
-// WriteMarkdown generates markdown documentation for a Go package.
-// It writes the package name, functions, types, and their associated documentation
-// to the provided io.Writer in markdown format.
+// WriteMarkdownWithOptions writes documentation with filtering controls.
 //
 // Parameters:
-//   - pkg: The Go package to document
+//   - pkg: The parsed Go package to document
 //   - out: The writer to output the markdown to
-//   - includePrivate: Whether to include unexported (non-exported) symbols
+//   - includePrivate: Whether to include non-exported (unexported) symbols
+//   - includeUndocumented: Whether to include symbols that lack GoDoc
 //
 // Returns:
-//   - error: Any error that occurred during documentation generation
-func WriteMarkdown(pkg *doc.Package, out io.Writer, includePrivate bool) error {
+//   - error: Any error encountered during rendering
+func WriteMarkdownWithOptions(pkg *doc.Package, out io.Writer, includePrivate, includeUndocumented bool) error {
 	fmt.Fprintf(out, "# Package %s\n\n", pkg.Name)
 
 	if len(pkg.Funcs) == 0 && len(pkg.Types) == 0 {
@@ -43,11 +42,17 @@ func WriteMarkdown(pkg *doc.Package, out io.Writer, includePrivate bool) error {
 		if !includePrivate && !isExported(f.Name) {
 			continue
 		}
+		if !includeUndocumented && strings.TrimSpace(f.Doc) == "" {
+			continue
+		}
 		printFunc(f, out)
 	}
 
 	for _, t := range pkg.Types {
 		if !includePrivate && !isExported(t.Name) {
+			continue
+		}
+		if !includeUndocumented && strings.TrimSpace(t.Doc) == "" {
 			continue
 		}
 
@@ -73,6 +78,9 @@ func WriteMarkdown(pkg *doc.Package, out io.Writer, includePrivate bool) error {
 		}
 		for _, m := range t.Methods {
 			if !includePrivate && !isExported(m.Name) {
+				continue
+			}
+			if !includeUndocumented && strings.TrimSpace(m.Doc) == "" {
 				continue
 			}
 			printFunc(m, out)

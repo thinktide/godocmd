@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/urfave/cli/v2"
-
 	"github.com/thinktide/godocmd"
+	"github.com/thinktide/godocmd/enums"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -29,23 +29,28 @@ func main() {
 			&cli.BoolFlag{
 				Name:    "recursive",
 				Aliases: []string{"r"},
-				Usage:   "Recursively find and document all Go packages",
+				Usage:   "Recursively find and document all Go packages under the given directory",
 			},
 			&cli.BoolFlag{
 				Name:    "include-private",
 				Aliases: []string{"p"},
-				Usage:   "Include unexported (non-exported) functions and types",
+				Usage:   "Include unexported (non-exported) functions and types in the output",
+			},
+			&cli.BoolFlag{
+				Name:  "include-undocumented",
+				Usage: "Include functions and types that lack GoDoc comments",
+			},
+			&cli.BoolFlag{
+				Name:  "verbose",
+				Usage: "Enable verbose log output",
 			},
 		},
 		Action: func(c *cli.Context) error {
 			dir := c.String("dir")
 			outPath := c.String("out")
-			recursive := c.Bool("recursive")
-			includePrivate := c.Bool("include-private")
 
 			var out *os.File
 			var err error
-
 			if outPath != "" {
 				if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
 					return err
@@ -59,7 +64,21 @@ func main() {
 				out = os.Stdout
 			}
 
-			return godocmd.GenerateMarkdown(dir, out, recursive, includePrivate)
+			var flags []enums.MarkdownFlag
+			if c.Bool("recursive") {
+				flags = append(flags, enums.Recursive)
+			}
+			if c.Bool("include-private") {
+				flags = append(flags, enums.IncludePrivate)
+			}
+			if c.Bool("include-undocumented") {
+				flags = append(flags, enums.IncludeUndocumented)
+			}
+			if c.Bool("verbose") {
+				flags = append(flags, enums.Verbose)
+			}
+
+			return godocmd.GenerateMarkdown(dir, out, flags...)
 		},
 	}
 
