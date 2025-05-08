@@ -8,8 +8,8 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"godocmd/format"
-	"godocmd/parse"
+	"github.com/thinktide/godocmd/format"
+	"github.com/thinktide/godocmd/parse"
 )
 
 func main() {
