@@ -5,7 +5,9 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 // LoadPackage parses a Go package from the specified directory and returns its documentation.
@@ -24,7 +26,9 @@ func LoadPackage(dir string) (*doc.Package, error) {
 	}
 
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, absDir, nil, parser.ParseComments)
+	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
+		return strings.HasSuffix(fi.Name(), ".go") && !strings.HasSuffix(fi.Name(), "_test.go")
+	}, parser.ParseComments)
 	if err != nil {
 		return nil, fmt.Errorf("parsing directory: %w", err)
 	}
