@@ -15,6 +15,12 @@ import (
 
 // main is the CLI entrypoint for the godocmd tool.
 // It parses CLI flags, loads one or more Go packages, and generates Markdown documentation.
+//
+// Parameters:
+//   - none (standard CLI entrypoint)
+//
+// Returns:
+//   - none (exits the program on error)
 func main() {
 	app := &cli.App{
 		Name:  "godocmd",
@@ -36,12 +42,18 @@ func main() {
 				Aliases: []string{"r"},
 				Usage:   "Recursively find and document all Go packages under the given directory",
 			},
+			&cli.BoolFlag{
+				Name:    "include-private",
+				Aliases: []string{"p"},
+				Usage:   "Include unexported (non-exported) functions and types in the output",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			dir := c.String("dir")
 			outPath := c.String("out")
 			recursive := c.Bool("recursive")
-			return runRecursive(dir, outPath, recursive)
+			includePrivate := c.Bool("include-private")
+			return runRecursive(dir, outPath, recursive, includePrivate)
 		},
 	}
 
@@ -51,16 +63,16 @@ func main() {
 }
 
 // runRecursive handles recursive or non-recursive documentation generation.
-// It collects Go package directories and generates markdown documentation for each.
 //
 // Parameters:
-//   - rootDir: The root directory to scan for packages
-//   - outPath: Optional path to write markdown output (writes to stdout if empty)
-//   - recursive: Whether to scan directories recursively
+//   - rootDir: The base directory to scan
+//   - outPath: File path for output, or empty string for stdout
+//   - recursive: Whether to search directories recursively
+//   - includePrivate: Whether to include non-exported symbols in the output
 //
 // Returns:
-//   - error: Any error encountered during scanning or writing
-func runRecursive(rootDir string, outPath string, recursive bool) error {
+//   - error: An error if scanning or writing fails
+func runRecursive(rootDir, outPath string, recursive, includePrivate bool) error {
 	var out *os.File
 	var err error
 
@@ -103,7 +115,7 @@ func runRecursive(rootDir string, outPath string, recursive bool) error {
 		}
 
 		fmt.Fprintf(out, "\n<!-- %s -->\n\n", dir)
-		if err := format.WriteMarkdown(docPkg, out); err != nil {
+		if err := format.WriteMarkdown(docPkg, out, includePrivate); err != nil {
 			log.Printf("⚠️ failed to write markdown for %s: %v", dir, err)
 			continue
 		}

@@ -1,42 +1,35 @@
 package parse
 
 import (
-	"fmt"
 	"go/doc"
 	"go/parser"
 	"go/token"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
-// LoadPackage parses a Go package from the specified directory and returns its documentation.
-// It handles both relative and absolute paths, and ensures the directory contains valid Go code.
+// LoadPackage loads the Go package from the specified directory and returns its documentation.
 //
 // Parameters:
-//   - dir: The directory path containing the Go package to parse
+//   - dir: The path to the package directory to load
 //
 // Returns:
-//   - *doc.Package: The parsed package documentation
-//   - error: Any error that occurred during parsing, including invalid directory or no Go package found
+//   - *doc.Package: The parsed documentation package
+//   - error: Any error encountered while parsing the directory
 func LoadPackage(dir string) (*doc.Package, error) {
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return nil, fmt.Errorf("invalid directory: %w", err)
-	}
+	fileSet := token.NewFileSet()
 
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
+	files, err := parser.ParseDir(fileSet, dir, func(fi os.FileInfo) bool {
+		// Skip test files
 		return strings.HasSuffix(fi.Name(), ".go") && !strings.HasSuffix(fi.Name(), "_test.go")
 	}, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("parsing directory: %w", err)
+		return nil, err
 	}
 
-	// pick the first package
-	for _, pkg := range pkgs {
-		return doc.New(pkg, absDir, 0), nil
+	for _, pkg := range files {
+		return doc.New(pkg, dir, doc.AllDecls), nil
 	}
 
-	return nil, fmt.Errorf("no Go package found in directory: %s", dir)
+	return nil, nil
 }

@@ -27,10 +27,11 @@ type StructFieldInfo struct {
 // Parameters:
 //   - pkg: The Go package to document
 //   - out: The writer to output the markdown to
+//   - includePrivate: Whether to include unexported (non-exported) symbols
 //
 // Returns:
 //   - error: Any error that occurred during documentation generation
-func WriteMarkdown(pkg *doc.Package, out io.Writer) error {
+func WriteMarkdown(pkg *doc.Package, out io.Writer, includePrivate bool) error {
 	fmt.Fprintf(out, "# Package %s\n\n", pkg.Name)
 
 	if len(pkg.Funcs) == 0 && len(pkg.Types) == 0 {
@@ -39,10 +40,17 @@ func WriteMarkdown(pkg *doc.Package, out io.Writer) error {
 	}
 
 	for _, f := range pkg.Funcs {
+		if !includePrivate && !isExported(f.Name) {
+			continue
+		}
 		printFunc(f, out)
 	}
 
 	for _, t := range pkg.Types {
+		if !includePrivate && !isExported(t.Name) {
+			continue
+		}
+
 		fmt.Fprintln(out, "\n---")
 		fmt.Fprintf(out, "## %s\n\n", t.Name)
 		if t.Doc != "" {
@@ -64,6 +72,9 @@ func WriteMarkdown(pkg *doc.Package, out io.Writer) error {
 			}
 		}
 		for _, m := range t.Methods {
+			if !includePrivate && !isExported(m.Name) {
+				continue
+			}
 			printFunc(m, out)
 		}
 	}
@@ -140,7 +151,7 @@ func renderStructType(spec *ast.TypeSpec, structType *ast.StructType) (string, [
 		if field.Tag != nil {
 			tag := reflect.StructTag(strings.Trim(field.Tag.Value, "`"))
 			raw := tag.Get("json")
-			jsonTag = strings.Split(raw, ",")[0] // remove omitempty
+			jsonTag = strings.Split(raw, ",")[0]
 			dynamoTag = tag.Get("dynamodbav")
 		}
 
@@ -164,6 +175,12 @@ func renderStructType(spec *ast.TypeSpec, structType *ast.StructType) (string, [
 }
 
 // renderJSONBlock returns a markdown code block for struct JSON tags.
+//
+// Parameters:
+//   - fields: Slice of StructFieldInfo to extract json tags from
+//
+// Returns:
+//   - string: A markdown-formatted code block with JSON field names
 func renderJSONBlock(fields []StructFieldInfo) string {
 	var b strings.Builder
 	var tags []string
@@ -184,6 +201,12 @@ func renderJSONBlock(fields []StructFieldInfo) string {
 }
 
 // renderDynamoBlock returns a markdown code block for struct DynamoDB tags.
+//
+// Parameters:
+//   - fields: Slice of StructFieldInfo to extract DynamoDB mappings from
+//
+// Returns:
+//   - string: A markdown-formatted table of DynamoDB field mappings
 func renderDynamoBlock(fields []StructFieldInfo) string {
 	var b strings.Builder
 	var tags []string
@@ -204,6 +227,12 @@ func renderDynamoBlock(fields []StructFieldInfo) string {
 }
 
 // mapGoTypeToDynamoType converts a Go type to an approximate DynamoDB type.
+//
+// Parameters:
+//   - goType: The Go type string to map
+//
+// Returns:
+//   - string: The inferred DynamoDB-compatible type
 func mapGoTypeToDynamoType(goType string) string {
 	switch strings.TrimPrefix(goType, "*") {
 	case "string":
@@ -219,7 +248,13 @@ func mapGoTypeToDynamoType(goType string) string {
 	}
 }
 
-// formatFuncDecl formats an AST FuncDecl into a string signature.
+// formatFuncDecl formats an AST FuncDecl into a Go-style function signature string.
+//
+// Parameters:
+//   - decl: The AST function declaration
+//
+// Returns:
+//   - string: A rendered Go-style function signature
 func formatFuncDecl(decl *ast.FuncDecl) string {
 	var buf strings.Builder
 	buf.WriteString("func ")
@@ -260,6 +295,12 @@ func formatFuncDecl(decl *ast.FuncDecl) string {
 }
 
 // fieldListToString renders a list of field names and types.
+//
+// Parameters:
+//   - f: The AST field node to render
+//
+// Returns:
+//   - string: A comma-separated list of field declarations
 func fieldListToString(f *ast.Field) string {
 	var buf strings.Builder
 	for i, n := range f.Names {
@@ -273,6 +314,12 @@ func fieldListToString(f *ast.Field) string {
 }
 
 // exprToString converts an AST expression into its Go code string form.
+//
+// Parameters:
+//   - expr: The AST expression to convert
+//
+// Returns:
+//   - string: A human-readable Go representation
 func exprToString(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
@@ -292,7 +339,13 @@ func exprToString(expr ast.Expr) string {
 	}
 }
 
-// formatDocComment converts a GoDoc comment into markdown by trimming // prefixes.
+// formatDocComment converts a GoDoc comment into markdown by trimming slashes and joining lines.
+//
+// Parameters:
+//   - doc: The raw GoDoc comment string
+//
+// Returns:
+//   - string: A cleaned-up markdown version of the comment
 func formatDocComment(doc string) string {
 	lines := strings.Split(doc, "\n")
 	var b strings.Builder
@@ -304,6 +357,12 @@ func formatDocComment(doc string) string {
 }
 
 // formatReceiverName extracts the receiver type name from a method declaration.
+//
+// Parameters:
+//   - fn: The function declaration with a receiver
+//
+// Returns:
+//   - string: The type name of the receiver
 func formatReceiverName(fn *ast.FuncDecl) string {
 	if fn.Recv == nil || len(fn.Recv.List) == 0 {
 		return ""
@@ -317,4 +376,19 @@ func formatReceiverName(fn *ast.FuncDecl) string {
 		return r.Name
 	}
 	return exprToString(fn.Recv.List[0].Type)
+}
+
+// isExported checks if a symbol name is exported (starts with an uppercase letter).
+//
+// Parameters:
+//   - name: The identifier name to check
+//
+// Returns:
+//   - bool: True if exported, false otherwise
+func isExported(name string) bool {
+	if name == "" {
+		return false
+	}
+	r := rune(name[0])
+	return strings.ToUpper(string(r)) == string(r)
 }
