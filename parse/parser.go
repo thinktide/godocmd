@@ -1,29 +1,64 @@
 package parse
 
 import (
-	"fmt"
+	"go/ast"
 	"go/doc"
 	"go/parser"
 	"go/token"
-	"path/filepath"
+	"os"
+	"strings"
 )
 
+// LoadPackage loads the Go package from the specified directory and returns its documentation.
+//
+// Parameters:
+//   - dir: The path to the package directory to load
+//
+// Returns:
+//   - *doc.Package: The parsed documentation package
+//   - error: Any error encountered while parsing the directory
 func LoadPackage(dir string) (*doc.Package, error) {
-	absDir, err := filepath.Abs(dir)
+	fileSet := token.NewFileSet()
+
+	files, err := parser.ParseDir(fileSet, dir, func(fi os.FileInfo) bool {
+		// Skip test files
+		return strings.HasSuffix(fi.Name(), ".go") && !strings.HasSuffix(fi.Name(), "_test.go")
+	}, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("invalid directory: %w", err)
+		return nil, err
 	}
 
+	for _, pkg := range files {
+		return doc.New(pkg, dir, doc.AllDecls), nil
+	}
+
+	return nil, nil
+}
+
+// ParseDocPackageFromSource parses in-memory Go files and returns a *doc.Package.
+//
+// Parameters:
+//   - name: The package name
+//   - files: A map of filename to Go source code
+//
+// Returns:
+//   - *doc.Package: The parsed documentation package
+//   - error: Any error encountered during parsing
+func ParseDocPackageFromSource(name string, files map[string]string) (*doc.Package, error) {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, absDir, nil, parser.ParseComments)
+	var parsedFiles []*ast.File
+
+	for filename, src := range files {
+		f, err := parser.ParseFile(fset, filename, src, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+		parsedFiles = append(parsedFiles, f)
+	}
+
+	pkg, err := doc.NewFromFiles(fset, parsedFiles, "./"+name, doc.AllDecls)
 	if err != nil {
-		return nil, fmt.Errorf("parsing directory: %w", err)
+		return nil, err
 	}
-
-	// pick the first package
-	for _, pkg := range pkgs {
-		return doc.New(pkg, absDir, 0), nil
-	}
-
-	return nil, fmt.Errorf("no Go package found in directory: %s", dir)
+	return pkg, nil
 }

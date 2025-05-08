@@ -64,3 +64,55 @@ func assertNotContains(t *testing.T, haystack, needle, message string) {
 		t.Errorf("expected output NOT to contain %q: %s", needle, message)
 	}
 }
+
+func TestWriteMarkdown_WithUndocumentedFiltering(t *testing.T) {
+	const input = `
+package testpkg
+
+// Visible function.
+func Exported() {}
+
+func internal() {}
+
+// Visible is a test struct that should be included.
+type Visible struct{}
+type invisible struct{}
+`
+
+	docPkg := parseGoDocPackage("testpkg", input)
+
+	var buf bytes.Buffer
+	err := WriteMarkdownWithOptions(docPkg, &buf, false, false)
+	if err != nil {
+		t.Fatalf("WriteMarkdownWithOptions failed: %v", err)
+	}
+
+	out := buf.String()
+
+	assertContains(t, out, "## Exported", "expected exported function to be included")
+	assertNotContains(t, out, "internal", "expected unexported function to be excluded")
+	assertContains(t, out, "## Visible", "expected exported type to be included")
+	assertNotContains(t, out, "invisible", "expected unexported type to be excluded")
+}
+
+func TestWriteMarkdown_IncludePrivateAndUndocumented(t *testing.T) {
+	const input = `
+package testpkg
+
+func Alpha() {}
+
+type Beta struct{}
+`
+
+	docPkg := parseGoDocPackage("testpkg", input)
+
+	var buf bytes.Buffer
+	err := WriteMarkdownWithOptions(docPkg, &buf, true, true)
+	if err != nil {
+		t.Fatalf("WriteMarkdownWithOptions failed: %v", err)
+	}
+
+	out := buf.String()
+	assertContains(t, out, "## Alpha", "expected private function to be included")
+	assertContains(t, out, "## Beta", "expected private type to be included")
+}
