@@ -90,6 +90,12 @@ func WriteMarkdownWithOptions(pkg *doc.Package, out io.Writer, includePrivate, i
 	return nil
 }
 
+// WriteMarkdown is a convenience alias that includes all symbols.
+// Deprecated: use WriteMarkdownWithOptions with explicit flags.
+func WriteMarkdown(pkg *doc.Package, out io.Writer) error {
+	return WriteMarkdownWithOptions(pkg, out, true, true)
+}
+
 // printFunc writes a markdown section for a Go function or method.
 //
 // Parameters:
