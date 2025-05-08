@@ -1,37 +1,70 @@
 package parse
 
 import (
-	"os"
-	"path/filepath"
+	"go/ast"
+	"go/doc"
+	"go/parser"
+	"go/token"
+	"strings"
 	"testing"
 )
 
-func TestLoadPackage_SimplePackage(t *testing.T) {
-	tempDir := t.TempDir()
+// parseGoDocPackage is a test helper that builds a *doc.Package from raw Go source code.
+//
+// Parameters:
+//   - name: The package name
+//   - code: Go source string to parse
+//
+// Returns:
+//   - *doc.Package: Parsed documentation package
+func parseGoDocPackage(name, code string) *doc.Package {
+	fset := token.NewFileSet()
 
-	const code = `
-package simple
-
-// Hello says hi.
-func Hello() string {
-	return "hi"
-}
-`
-	filePath := filepath.Join(tempDir, "hello.go")
-	if err := os.WriteFile(filePath, []byte(code), 0644); err != nil {
-		t.Fatalf("failed to write temp file: %v", err)
-	}
-
-	docPkg, err := LoadPackage(tempDir)
+	file, err := parser.ParseFile(fset, name+".go", code, parser.ParseComments)
 	if err != nil {
-		t.Fatalf("LoadPackage failed: %v", err)
+		panic(err)
 	}
 
-	if docPkg.Name != "simple" {
-		t.Errorf("expected package name 'simple', got %q", docPkg.Name)
+	pkg, err := doc.NewFromFiles(fset, []*ast.File{file}, "./"+name, doc.AllDecls)
+	if err != nil {
+		panic(err)
 	}
 
-	if len(docPkg.Funcs) == 0 || docPkg.Funcs[0].Name != "Hello" {
-		t.Errorf("expected to find function Hello in doc package")
+	return pkg
+}
+
+func TestParseGoDocPackage_ExtractsFuncs(t *testing.T) {
+	src := `
+		package testpkg
+
+		// Add returns the sum of two integers.
+		func Add(a, b int) int {
+			return a + b
+		}
+	`
+	pkg := parseGoDocPackage("testpkg", src)
+	if len(pkg.Funcs) != 1 {
+		t.Fatalf("expected 1 func, got %d", len(pkg.Funcs))
+	}
+	if pkg.Funcs[0].Name != "Add" {
+		t.Errorf("expected func name 'Add', got %s", pkg.Funcs[0].Name)
+	}
+	if !strings.Contains(pkg.Funcs[0].Doc, "Add returns") {
+		t.Errorf("expected doc comment to mention 'Add returns', got: %s", pkg.Funcs[0].Doc)
+	}
+}
+
+func TestParseGoDocPackage_HandlesNoFuncs(t *testing.T) {
+	src := `
+		package testpkg
+
+		type Foo struct{}
+	`
+	pkg := parseGoDocPackage("testpkg", src)
+	if len(pkg.Funcs) != 0 {
+		t.Fatalf("expected 0 funcs, got %d", len(pkg.Funcs))
+	}
+	if len(pkg.Types) != 1 || pkg.Types[0].Name != "Foo" {
+		t.Errorf("expected type Foo to be parsed, got %+v", pkg.Types)
 	}
 }

@@ -1,6 +1,7 @@
 package parse
 
 import (
+	"go/ast"
 	"go/doc"
 	"go/parser"
 	"go/token"
@@ -32,4 +33,32 @@ func LoadPackage(dir string) (*doc.Package, error) {
 	}
 
 	return nil, nil
+}
+
+// ParseDocPackageFromSource parses in-memory Go files and returns a *doc.Package.
+//
+// Parameters:
+//   - name: The package name
+//   - files: A map of filename to Go source code
+//
+// Returns:
+//   - *doc.Package: The parsed documentation package
+//   - error: Any error encountered during parsing
+func ParseDocPackageFromSource(name string, files map[string]string) (*doc.Package, error) {
+	fset := token.NewFileSet()
+	var parsedFiles []*ast.File
+
+	for filename, src := range files {
+		f, err := parser.ParseFile(fset, filename, src, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+		parsedFiles = append(parsedFiles, f)
+	}
+
+	pkg, err := doc.NewFromFiles(fset, parsedFiles, "./"+name, doc.AllDecls)
+	if err != nil {
+		return nil, err
+	}
+	return pkg, nil
 }
