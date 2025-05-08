@@ -1,4 +1,4 @@
-module godocmd
+module github.com/thinktide/godocmd
 
 go 1.23
 
