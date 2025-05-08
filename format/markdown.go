@@ -60,9 +60,19 @@ func WriteMarkdown(pkg *doc.Package, out io.Writer) error {
 
 func printFunc(f *doc.Func, out io.Writer) {
 	decl := formatFuncDecl(f.Decl)
-	fmt.Fprintln(out, "\n---")
-	fmt.Fprintf(out, "## %s\n\n", f.Name)
+
+	// Check for method with receiver
+	if f.Recv != "" {
+		recv := formatReceiverName(f.Decl)
+		fmt.Fprintln(out, "\n---")
+		fmt.Fprintf(out, "## <small><em>%s.</em></small>%s\n\n", recv, f.Name)
+	} else {
+		fmt.Fprintln(out, "\n---")
+		fmt.Fprintf(out, "## %s\n\n", f.Name)
+	}
+
 	fmt.Fprintf(out, "```go\n%s\n```\n\n", decl)
+
 	if f.Doc != "" {
 		fmt.Fprintln(out, formatDocComment(f.Doc))
 	}
@@ -104,7 +114,8 @@ func renderStructType(spec *ast.TypeSpec, structType *ast.StructType) (string, [
 		jsonTag, dynamoTag := "", ""
 		if field.Tag != nil {
 			tag := reflect.StructTag(strings.Trim(field.Tag.Value, "`"))
-			jsonTag = tag.Get("json")
+			raw := tag.Get("json")
+			jsonTag = strings.Split(raw, ",")[0] // removes ,omitempty and any other options
 			dynamoTag = tag.Get("dynamodbav")
 		}
 
@@ -259,4 +270,19 @@ func formatDocComment(doc string) string {
 		b.WriteString("\n")
 	}
 	return strings.TrimSpace(b.String())
+}
+
+func formatReceiverName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return ""
+	}
+	switch r := fn.Recv.List[0].Type.(type) {
+	case *ast.StarExpr:
+		if ident, ok := r.X.(*ast.Ident); ok {
+			return ident.Name
+		}
+	case *ast.Ident:
+		return r.Name
+	}
+	return exprToString(fn.Recv.List[0].Type)
 }
