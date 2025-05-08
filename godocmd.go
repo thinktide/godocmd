@@ -83,7 +83,7 @@ func GenerateMarkdown(rootDir string, out io.Writer, flags ...enums.MarkdownFlag
 		}
 
 		if i < len(dirs)-1 {
-			fmt.Fprintln(out, "\n---\n")
+			fmt.Fprint(out, "\n\n---\n")
 		}
 	}
 
