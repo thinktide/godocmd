@@ -1,5 +1,4 @@
 [![CI](https://github.com/thinktide/godocmd/actions/workflows/test.yml/badge.svg)](https://github.com/thinktide/godocmd/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/thinktide/godocmd/branch/main/graph/badge.svg)](https://codecov.io/gh/thinktide/godocmd)
 [![Go Reference](https://pkg.go.dev/badge/github.com/thinktide/godocmd.svg)](https://pkg.go.dev/github.com/thinktide/godocmd)
 ![Go Version](https://img.shields.io/badge/go-1.21+-blue)
 # godocmd
