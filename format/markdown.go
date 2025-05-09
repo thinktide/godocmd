@@ -20,24 +20,35 @@ type StructFieldInfo struct {
 	DynamoType string
 }
 
-// WriteMarkdownWithOptions writes documentation with filtering controls.
-//
-// Parameters:
-//   - pkg: The parsed Go package to document
-//   - out: The writer to output the markdown to
-//   - includePrivate: Whether to include non-exported (unexported) symbols
-//   - includeUndocumented: Whether to include symbols that lack GoDoc
-//
-// Returns:
-//   - error: Any error encountered during rendering
 func WriteMarkdownWithOptions(pkg *doc.Package, out io.Writer, includePrivate, includeUndocumented bool) error {
-	fmt.Fprintf(out, "# Package %s\n\n", pkg.Name)
+	// First count visible symbols after applying filters
+	visibleSymbols := 0
 
-	if len(pkg.Funcs) == 0 && len(pkg.Types) == 0 {
-		fmt.Fprintf(out, "_No exported symbols in package `%s`._\n", pkg.Name)
+	// Count visible functions
+	for _, f := range pkg.Funcs {
+		if (!includePrivate && !isExported(f.Name)) ||
+			(!includeUndocumented && strings.TrimSpace(f.Doc) == "") {
+			continue
+		}
+		visibleSymbols++
+	}
+
+	// Count visible types
+	for _, t := range pkg.Types {
+		if (!includePrivate && !isExported(t.Name)) ||
+			(!includeUndocumented && strings.TrimSpace(t.Doc) == "") {
+			continue
+		}
+		visibleSymbols++
+	}
+
+	if visibleSymbols == 0 {
 		return nil
 	}
 
+	fmt.Fprintf(out, "<details open>\n<summary><strong>📦 %s</strong></summary>\n\n", pkg.Name)
+
+	// Process visible functions
 	for _, f := range pkg.Funcs {
 		if !includePrivate && !isExported(f.Name) {
 			continue
@@ -86,6 +97,8 @@ func WriteMarkdownWithOptions(pkg *doc.Package, out io.Writer, includePrivate, i
 			printFunc(m, out)
 		}
 	}
+
+	fmt.Fprintf(out, "</details>\n")
 
 	return nil
 }
