@@ -20,6 +20,16 @@ type StructFieldInfo struct {
 	DynamoType string
 }
 
+// WriteMarkdownWithOptions generates a markdown representation of a Go package with options for visibility and documentation filters.
+//
+// Parameters:
+//   - pkg: The Go package to document.
+//   - out: The writer to output the markdown to.
+//   - includePrivate: Flag to include non-exported (private) symbols.
+//   - includeUndocumented: Flag to include symbols missing documentation.
+//
+// Returns:
+//   - error: Any error encountered during processing.
 func WriteMarkdownWithOptions(pkg *doc.Package, out io.Writer, includePrivate, includeUndocumented bool) error {
 	// First count visible symbols after applying filters
 	visibleSymbols := 0
@@ -46,7 +56,7 @@ func WriteMarkdownWithOptions(pkg *doc.Package, out io.Writer, includePrivate, i
 		return nil
 	}
 
-	fmt.Fprintf(out, "<details open>\n<summary><strong>📦 %s</strong></summary>\n\n", pkg.Name)
+	fmt.Fprintf(out, "<details>\n<summary><strong>📦 %s</strong></summary>\n\n", pkg.Name)
 
 	// Process visible functions
 	for _, f := range pkg.Funcs {
@@ -69,24 +79,53 @@ func WriteMarkdownWithOptions(pkg *doc.Package, out io.Writer, includePrivate, i
 
 		fmt.Fprintln(out, "\n---")
 		fmt.Fprintf(out, "## %s\n\n", t.Name)
-		if t.Doc != "" {
-			fmt.Fprintln(out, formatDocComment(t.Doc))
-			fmt.Fprintln(out)
-		}
+
+		// Process type declaration and definition
 		for _, spec := range t.Decl.Specs {
 			if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-				if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-					structText, fields := renderStructType(typeSpec, structType)
-					fmt.Fprintf(out, "```go\n%s\n```\n\n", structText)
-					if jsonOut := renderJSONBlock(fields); jsonOut != "" {
-						fmt.Fprintln(out, jsonOut)
+				switch underlying := typeSpec.Type.(type) {
+				case *ast.StructType:
+					if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+						// Print struct type definition first
+						structText, fields := renderStructType(typeSpec, structType)
+						fmt.Fprintf(out, "```go\n%s\n```\n\n", structText)
+
+						// Print documentation after
+						if t.Doc != "" {
+							fmt.Fprintln(out, formatDocComment(t.Doc))
+							fmt.Fprintln(out)
+						}
+
+						// Add JSON and DynamoDB blocks (if available)
+						if jsonOut := renderJSONBlock(fields); jsonOut != "" {
+							fmt.Fprintln(out, jsonOut)
+						}
+						if dynamoOut := renderDynamoBlock(fields); dynamoOut != "" {
+							fmt.Fprintln(out, dynamoOut)
+						}
 					}
-					if dynamoOut := renderDynamoBlock(fields); dynamoOut != "" {
-						fmt.Fprintln(out, dynamoOut)
+				case *ast.Ident, *ast.ArrayType, *ast.MapType, *ast.InterfaceType, *ast.StarExpr, *ast.SelectorExpr:
+					// Print type alias or other complex types
+					fmt.Fprintf(out, "```go\ntype %s %s\n```\n\n", typeSpec.Name.Name, exprToString(underlying))
+
+					// Print documentation after the type definition
+					if t.Doc != "" {
+						fmt.Fprintln(out, formatDocComment(t.Doc))
+						fmt.Fprintln(out)
+					}
+				default:
+					// Handle unknown type
+					fmt.Fprintf(out, "```go\ntype %s <unknown type>\n```\n\n", typeSpec.Name.Name)
+
+					if t.Doc != "" {
+						fmt.Fprintln(out, formatDocComment(t.Doc))
+						fmt.Fprintln(out)
 					}
 				}
 			}
 		}
+
+		// Add method details
 		for _, m := range t.Methods {
 			if !includePrivate && !isExported(m.Name) {
 				continue

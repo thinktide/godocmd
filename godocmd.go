@@ -58,7 +58,7 @@ func GenerateMarkdown(rootDir string, out io.Writer, flags ...enums.MarkdownFlag
 		}
 	}
 
-	for i, dir := range dirs {
+	for _, dir := range dirs {
 		if cfg.verbose {
 			fmt.Fprintf(os.Stderr, "📦 Parsing package: %s\n", dir)
 		}
@@ -80,10 +80,6 @@ func GenerateMarkdown(rootDir string, out io.Writer, flags ...enums.MarkdownFlag
 		if err := format.WriteMarkdownWithOptions(docPkg, out, cfg.includePrivate, cfg.includeUndocumented); err != nil {
 			fmt.Fprintf(os.Stderr, "⚠️  Failed to write markdown for %s: %v\n", dir, err)
 			continue
-		}
-
-		if i < len(dirs)-1 {
-			fmt.Fprint(out, "\n\n---\n")
 		}
 	}
 
